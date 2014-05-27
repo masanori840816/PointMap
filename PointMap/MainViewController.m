@@ -44,8 +44,11 @@
 - (void)prepareTappingMapAction
 {
     // MapをTapした時にイベントを取得できるようにする
-    UITapGestureRecognizer *tgrTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(mapTouched:)];
-    [tgrTapGesture setNumberOfTapsRequired:1];
+    UILongPressGestureRecognizer *tgrTapGesture;
+    tgrTapGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                                     action:@selector(mapTouched:)];
+    
+    
     [_mmvMap addGestureRecognizer:tgrTapGesture];
 }
 - (void)viewDidAppear:(BOOL)animated {
@@ -64,13 +67,45 @@
 - (void)mapTouched:(UITapGestureRecognizer *)sender
 {
     // MapをTapした場所から緯度、経度を取得する
-    if (sender.state == UIGestureRecognizerStateEnded) {
-        CGPoint cgpTapPoint = [sender locationInView:self.view];
+    if (sender.state == UIGestureRecognizerStateBegan) {
+        CGPoint cgpTapPoint = [sender locationInView:_mmvMap];
         CLLocationCoordinate2D clcTapLocation = [_mmvMap convertPoint:cgpTapPoint toCoordinateFromView:_mmvMap];
-        NSLog(@"%f", clcTapLocation.latitude);
-        NSLog(@"%f", clcTapLocation.longitude);
+    
+        [self setAnnotation:clcTapLocation mapMove:NO animated:YES];
     }
 }
+-(void)setAnnotation:(CLLocationCoordinate2D) point mapMove:(BOOL)mapMove
+            animated:(BOOL)animated{
+    
+    // 新しいピンを作成
+    MKPointAnnotation *anno = [[MKPointAnnotation alloc] init];
+    anno.coordinate = point;
+    // ピンを追加
+    [_mmvMap addAnnotation:anno];
+    
+    [self computeDistance:point];
+}
+
+- (void)computeDistance:(CLLocationCoordinate2D)clcLocationCoordinate
+{
+    // Tapした地点と現在地との距離を取得する
+    CLLocation *cllTappedLocation = [[CLLocation alloc] initWithLatitude:clcLocationCoordinate.latitude longitude:clcLocationCoordinate.longitude];
+    
+    float fltDistance = [_mmvMap.userLocation.location distanceFromLocation:cllTappedLocation];
+    
+    [self getTargetAngle:cllTappedLocation];
+}
+- (void)getTargetAngle:(CLLocation *)tappedLocation
+{
+    // 緯度、経度差から角度を取得する
+    float fltTargetY = _mmvMap.userLocation.location.coordinate.latitude - tappedLocation.coordinate.latitude;
+    float fltTargetX = _mmvMap.userLocation.location.coordinate.longitude - tappedLocation.coordinate.longitude;
+    
+    float fltTargetAngle = atan2f(fabs(fltTargetY), fabs(fltTargetX)) * 180 / M_PI;
+    
+    NSLog(@"%f", fltTargetAngle);
+}
+
 - (IBAction)btnCurrentLocationTouched:(id)sender {
     // 地図の中心座標に現在地を設定
     MKCoordinateSpan mcsSpan = MKCoordinateSpanMake(0.5, 0.5);
